@@ -46,6 +46,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -62,6 +63,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.core.content.ContextCompat
 import com.example.dessertclicker.data.Datasource
 import com.example.dessertclicker.model.Dessert
+import com.example.dessertclicker.model.DessertUiState
+import com.example.dessertclicker.model.DessertViewModel
 import com.example.dessertclicker.ui.theme.DessertClickerTheme
 
 private const val TAG = "MainActivity"
@@ -117,56 +120,19 @@ class MainActivity : ComponentActivity() {
 /**
  * Determine which dessert to show.
  */
-fun determineDessertToShow(
-    desserts: List<Dessert>,
-    dessertsSold: Int
-): Dessert {
-    var dessertToShow = desserts.first()
-    for (dessert in desserts) {
-        if (dessertsSold >= dessert.startProductionAmount) {
-            dessertToShow = dessert
-        } else {
-            // The list of desserts is sorted by startProductionAmount. As you sell more desserts,
-            // you'll start producing more expensive desserts as determined by startProductionAmount
-            // We know to break as soon as we see a dessert who's "startProductionAmount" is greater
-            // than the amount sold.
-            break
-        }
-    }
+// move the below function to viewmodel?
 
-    return dessertToShow
-}
 
 /**
  * Share desserts sold information using ACTION_SEND intent
  */
-private fun shareSoldDessertsInformation(intentContext: Context, dessertsSold: Int, revenue: Int) {
-    val sendIntent = Intent().apply {
-        action = Intent.ACTION_SEND
-        putExtra(
-            Intent.EXTRA_TEXT,
-            intentContext.getString(R.string.share_text, dessertsSold, revenue)
-        )
-        type = "text/plain"
-    }
 
-    val shareIntent = Intent.createChooser(sendIntent, null)
-
-    try {
-        ContextCompat.startActivity(intentContext, shareIntent, null)
-    } catch (e: ActivityNotFoundException) {
-        Toast.makeText(
-            intentContext,
-            intentContext.getString(R.string.sharing_not_available),
-            Toast.LENGTH_LONG
-        ).show()
-    }
-}
 
 @Composable
 private fun DessertClickerApp(
-    desserts: List<Dessert>
+    dessertViewModel: DessertViewModel = DessertViewModel(),
 ) {
+    val dessertUiState by dessertViewModel.uiState.collectAsState()
 
     var revenue by rememberSaveable { mutableStateOf(0) }
     var dessertsSold by rememberSaveable { mutableStateOf(0) }
@@ -174,10 +140,10 @@ private fun DessertClickerApp(
     val currentDessertIndex by rememberSaveable { mutableStateOf(0) }
 
     var currentDessertPrice by rememberSaveable {
-        mutableStateOf(desserts[currentDessertIndex].price)
+        mutableStateOf(dessertUiState.price)
     }
     var currentDessertImageId by rememberSaveable {
-        mutableStateOf(desserts[currentDessertIndex].imageId)
+        mutableStateOf(dessertUiState.imageId)
     }
 
     Scaffold(
@@ -185,7 +151,7 @@ private fun DessertClickerApp(
             val intentContext = LocalContext.current
             DessertClickerAppBar(
                 onShareButtonClicked = {
-                    shareSoldDessertsInformation(
+                    dessertViewModel.shareSoldDessertsInformation(
                         intentContext = intentContext,
                         dessertsSold = dessertsSold,
                         revenue = revenue
@@ -208,7 +174,7 @@ private fun DessertClickerApp(
                 dessertsSold++
 
                 // Show the next dessert
-                val dessertToShow = determineDessertToShow(desserts, dessertsSold)
+                val dessertToShow = dessertViewModel.determineDessertToShow(listOf(dessertUiState), dessertsSold)
                 currentDessertImageId = dessertToShow.imageId
                 currentDessertPrice = dessertToShow.price
             },
